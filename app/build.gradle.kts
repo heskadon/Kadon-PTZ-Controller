@@ -59,6 +59,12 @@ android {
                 output.outputFileName = outputFileName
             }
     }
+
+    tasks.register("printVersionName") {
+        doLast {
+            println(android.defaultConfig.versionName)
+        }
+    }
 }
 
 kotlin {
