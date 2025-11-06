@@ -10,10 +10,13 @@ on:
     branches:
       - main
     paths-ignore:
-      - '**.md'          # Ignore all Markdown files (like README.md)
-      - 'docs/**'        # Ignore changes in a documentation directory (optional)
-      - 'LICENSE'        # Ignore changes to the license file (optional)
-      - '.gitignore'     # Ignore changes to gitignore file (optional)
+      - 'README.md'      # Explicitly ignore the root README
+      - '**.md'          # Ignore all other Markdown files (in any sub-directory)
+      - 'docs/**'        # Ignore changes in a dedicated documentation directory
+      - 'LICENSE'        # Ignore changes to the license file
+      - '.gitignore'     # Ignore changes to gitignore file
+      - 'assets/**'      # NEW: Common location for small assets/images for documentation
+      - 'fastlane/**'    # NEW: Files often used for app store automation but not for building the APK
 
 jobs:
   build:
