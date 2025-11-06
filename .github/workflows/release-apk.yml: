@@ -1,4 +1,4 @@
-name: Build & Upload Signed APK
+name: Build, Upload & Release APK
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
 
       - name: Decode keystore
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > kadon-ptz.jks
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > sign-release.jks
 
       - name: Build signed APK
         env:
@@ -32,27 +32,45 @@ jobs:
 
       - name: Get Access Token
         run: |
-          curl -X POST https://login.microsoftonline.com/${{ secrets.ONEDRIVE_TENANT_ID }}/oauth2/v2.0/token \
-            -d "client_id=${{ secrets.ONEDRIVE_CLIENT_ID }}" \
-            -d "scope=https://graph.microsoft.com/.default" \
-            -d "client_secret=${{ secrets.ONEDRIVE_CLIENT_SECRET }}" \
-            -d "grant_type=refresh_token" \
-            -d "refresh_token=${{ secrets.ONEDRIVE_REFRESH_TOKEN }}" \
+          curl -X POST https://login.microsoftonline.com/${{ secrets.ONEDRIVE_TENANT_ID }}/oauth2/v2.0/token 
+            -d "client_id=${{ secrets.ONEDRIVE_CLIENT_ID }}" 
+            -d "scope=https://graph.microsoft.com/.default" 
+            -d "client_secret=${{ secrets.ONEDRIVE_CLIENT_SECRET }}" 
+            -d "grant_type=refresh_token" 
+            -d "refresh_token=${{ secrets.ONEDRIVE_REFRESH_TOKEN }}" 
             -o token.json
 
       - name: Upload APK to OneDrive
         run: |
           ACCESS_TOKEN=$(jq -r .access_token token.json)
           APK_PATH=app/build/outputs/apk/release/com.kadon.ptzcontroller-1.0.0.apk
-          curl -X PUT \
-            -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -H "Content-Type: application/vnd.android.package-archive" \
-            --upload-file $APK_PATH \
-            "https://graph.microsoft.com/v1.0/me/drive/root:/APK_TEST/$(basename $APK_PATH):/content"
+          curl -X PUT 
+            -H "Authorization: Bearer $ACCESS_TOKEN" 
+            -H "Content-Type: application/vnd.android.package-archive" 
+            --upload-file $APK_PATH 
+            "https://graph.microsoft.com/v1.0/me/drive/root:/APK/$(basename $APK_PATH):/content"
 
-      - name: Upload APK to GitHub Release (optional)
+      - name: Get version name from Gradle
+        id: get_version
+        run: |
+          VERSION_NAME=$(./gradlew -q printVersionName)
+          echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ env.VERSION_NAME }}
+          release_name: Release v${{ env.VERSION_NAME }}
+          draft: false
+          prerelease: false
+
+      - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/release/com.kadon.ptzcontroller-1.0.0.apk
+          tag_name: v${{ env.VERSION_NAME }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
