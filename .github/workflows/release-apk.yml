@@ -1,5 +1,10 @@
 name: 📦Build, Upload & Release APK
 
+# Explicitly request permissions for the GITHUB_TOKEN
+permissions:
+  contents: write # This is crucial for creating releases
+  # deployments: write # Uncomment if you also deploy using this token
+
 on:
   push:
     branches:
@@ -13,7 +18,7 @@ jobs:
       - name: 📥Checkout code
         uses: actions/checkout@v4
         with:
-          # Ensure we get the full history to handle tags properly
+          # Fetch full history as it might be needed for tag verification
           fetch-depth: 0
 
       - name: ☕Set up JDK
@@ -46,16 +51,16 @@ jobs:
         run: ./gradlew assembleRelease
 
       - name: 🚀Create GitHub Release and Upload APK
-        uses: softprops/action-gh-release@v2  # Use the recommended v2
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.VERSION_NAME }} # Use the version from the environment
-          name: "Release v${{ env.VERSION_NAME }}" # Use the version in the release name
+          tag_name: v${{ env.VERSION_NAME }}
+          name: "Release v${{ env.VERSION_NAME }}"
           body: "Automated release for version ${{ env.VERSION_NAME }}"
           draft: false
           prerelease: false
-          files: app/build/outputs/apk/release/*.apk # Upload the APK files
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Pass the token correctly
+          files: app/build/outputs/apk/release/*.apk
+        # The GITHUB_TOKEN is automatically provided and now has write permissions
+        # due to the 'permissions:' block at the top of the workflow
 
       - name: 🔐Get Access Token for OneDrive
         id: get_onedrive_token
@@ -73,7 +78,7 @@ jobs:
 
       - name: ☁️Upload APK to OneDrive
         run: |
-          # Find the correct APK file path - adjust if your build variant is different
+          # Find the correct APK file path
           APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" -type f | head -n 1)
           if [ -z "$APK_PATH" ]; then
             echo "Error: Could not find APK file in app/build/outputs/apk/release/"
