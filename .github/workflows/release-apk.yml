@@ -13,7 +13,8 @@ jobs:
       - name: 📥Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Ensure we get the full history to handle tags properly
+          fetch-depth: 0
 
       - name: ☕Set up JDK
         uses: actions/setup-java@v4
@@ -31,16 +32,11 @@ jobs:
       - name: 🏷️Get version name from Gradle
         id: get_version
         run: |
-          VERSION_NAME=$(./gradlew -q printVersionName | grep -v "Starting" | grep -v "BUILD" | tr -d '\n')
+          # Extract version, filtering out Gradle noise
+          VERSION_NAME=$(./gradlew -q printVersionName | grep -v "Starting" | grep -v "BUILD SUCCESSFUL" | grep -v "^$" | head -n 1 | xargs)
+          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
           echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
-          echo "Version name: $VERSION_NAME"
-
-      - name: 🏷️Create tag if it doesn't exist
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git tag -a "v${{ env.VERSION_NAME }}" -m "Release v${{ env.VERSION_NAME }}" || echo "Tag already exists"
-          git push origin "v${{ env.VERSION_NAME }}" || echo "Tag already pushed"
+          echo "Extracted Version: $VERSION_NAME"
 
       - name: 📦Build signed APK
         env:
@@ -49,7 +45,20 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
-      - name: 🔐Get Access Token
+      - name: 🚀Create GitHub Release and Upload APK
+        uses: softprops/action-gh-release@v2  # Use the recommended v2
+        with:
+          tag_name: v${{ env.VERSION_NAME }} # Use the version from the environment
+          name: "Release v${{ env.VERSION_NAME }}" # Use the version in the release name
+          body: "Automated release for version ${{ env.VERSION_NAME }}"
+          draft: false
+          prerelease: false
+          files: app/build/outputs/apk/release/*.apk # Upload the APK files
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Pass the token correctly
+
+      - name: 🔐Get Access Token for OneDrive
+        id: get_onedrive_token
         run: |
           curl -X POST https://login.microsoftonline.com/${{ secrets.ONEDRIVE_TENANT_ID }}/oauth2/v2.0/token \
             -d "client_id=${{ secrets.ONEDRIVE_CLIENT_ID }}" \
@@ -58,27 +67,23 @@ jobs:
             -d "grant_type=refresh_token" \
             -d "refresh_token=${{ secrets.ONEDRIVE_REFRESH_TOKEN }}" \
             -o token.json
+          # Extract token and make it available to next step
+          ACCESS_TOKEN=$(jq -r .access_token token.json)
+          echo "access_token=$ACCESS_TOKEN" >> $GITHUB_OUTPUT
 
       - name: ☁️Upload APK to OneDrive
         run: |
-          ACCESS_TOKEN=$(jq -r .access_token token.json)
-          APK_PATH=app/build/outputs/apk/release/app-release.apk
-          if [ ! -f "$APK_PATH" ]; then
-            APK_PATH=app/build/outputs/apk/release/com.kadon.ptzcontroller-${{ env.VERSION_NAME }}.apk
+          # Find the correct APK file path - adjust if your build variant is different
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" -type f | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "Error: Could not find APK file in app/build/outputs/apk/release/"
+            exit 1
           fi
+          echo "Found APK at: $APK_PATH"
+
+          ACCESS_TOKEN="${{ steps.get_onedrive_token.outputs.access_token }}"
           curl -X PUT \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
             -H "Content-Type: application/vnd.android.package-archive" \
             --upload-file "$APK_PATH" \
             "https://graph.microsoft.com/v1.0/me/drive/root:/APK/$(basename "$APK_PATH"):/content"
-
-      - name: 🚀Create GitHub Release
-        uses: ncipollo/release-action@v1
-        with:
-          tag: v${{ env.VERSION_NAME }}
-          name: "Release v${{ env.VERSION_NAME }}"
-          body: "Automated release for version ${{ env.VERSION_NAME }}"
-          draft: false
-          prerelease: false
-          artifacts: "app/build/outputs/apk/release/*.apk"
-          token: ${{ secrets.GITHUB_TOKEN }}
