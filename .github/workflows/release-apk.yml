@@ -10,11 +10,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: 📥Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up JDK
-        uses: actions/setup-java@v3
+      - name: ☕Set up JDK
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -23,8 +25,22 @@ jobs:
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/kadon-ptz.jks
 
-      - name: Make gradlew executable
+      - name: ⚙️Make gradlew executable
         run: chmod +x ./gradlew
+
+      - name: 🏷️Get version name from Gradle
+        id: get_version
+        run: |
+          VERSION_NAME=$(./gradlew -q printVersionName | grep -v "Starting" | grep -v "BUILD" | tr -d '\n')
+          echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
+          echo "Version name: $VERSION_NAME"
+
+      - name: 🏷️Create tag if it doesn't exist
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git tag -a "v${{ env.VERSION_NAME }}" -m "Release v${{ env.VERSION_NAME }}" || echo "Tag already exists"
+          git push origin "v${{ env.VERSION_NAME }}" || echo "Tag already pushed"
 
       - name: 📦Build signed APK
         env:
@@ -33,7 +49,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
-      - name: Get Access Token
+      - name: 🔐Get Access Token
         run: |
           curl -X POST https://login.microsoftonline.com/${{ secrets.ONEDRIVE_TENANT_ID }}/oauth2/v2.0/token \
             -d "client_id=${{ secrets.ONEDRIVE_CLIENT_ID }}" \
@@ -43,38 +59,26 @@ jobs:
             -d "refresh_token=${{ secrets.ONEDRIVE_REFRESH_TOKEN }}" \
             -o token.json
 
-      - name: ⬆️Upload APK to OneDrive
+      - name: ☁️Upload APK to OneDrive
         run: |
           ACCESS_TOKEN=$(jq -r .access_token token.json)
-          APK_PATH=app/build/outputs/apk/release/com.kadon.ptzcontroller-1.0.0.apk
+          APK_PATH=app/build/outputs/apk/release/app-release.apk
+          if [ ! -f "$APK_PATH" ]; then
+            APK_PATH=app/build/outputs/apk/release/com.kadon.ptzcontroller-${{ env.VERSION_NAME }}.apk
+          fi
           curl -X PUT \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
             -H "Content-Type: application/vnd.android.package-archive" \
             --upload-file "$APK_PATH" \
             "https://graph.microsoft.com/v1.0/me/drive/root:/APK/$(basename "$APK_PATH"):/content"
 
-      - name: Get version name from Gradle
-        id: get_version
-        run: |
-          VERSION_NAME=$(./gradlew -q printVersionName)
-          echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
-
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 🚀Create GitHub Release
+        uses: ncipollo/release-action@v1
         with:
-          tag_name: v${{ env.VERSION_NAME }}
-          release_name: Release v${{ env.VERSION_NAME }}
+          tag: v${{ env.VERSION_NAME }}
+          name: "Release v${{ env.VERSION_NAME }}"
+          body: "Automated release for version ${{ env.VERSION_NAME }}"
           draft: false
           prerelease: false
-        permissions: write-all
-
-      - name: Upload APK to GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: app/build/outputs/apk/release/com.kadon.ptzcontroller-1.0.0.apk
-          tag_name: v${{ env.VERSION_NAME }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: "app/build/outputs/apk/release/*.apk"
+          token: ${{ secrets.GITHUB_TOKEN }}
