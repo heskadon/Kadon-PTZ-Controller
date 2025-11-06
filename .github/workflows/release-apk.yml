@@ -2,7 +2,8 @@ name: Build, Upload & Release APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
   build:
@@ -20,7 +21,10 @@ jobs:
 
       - name: Decode keystore
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > kadon-ptz.jks
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > sign-release.jks
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
 
       - name: Build signed APK
         env:
