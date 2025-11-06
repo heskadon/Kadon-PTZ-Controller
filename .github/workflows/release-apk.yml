@@ -20,7 +20,7 @@ jobs:
 
       - name: Decode keystore
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > sign-release.jks
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > kadon-ptz.jks
 
       - name: Build signed APK
         env:
