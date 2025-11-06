@@ -1,4 +1,4 @@
-name: Build, Upload & Release APK
+name: 📦Build, Upload & Release APK
 
 on:
   push:
@@ -19,14 +19,14 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Decode keystore
+      - name: 🔑Decode keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/kadon-ptz.jks
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Build signed APK
+      - name: 📦Build signed APK
         env:
           KEYSTORE_ALIAS: ${{ secrets.KEYSTORE_ALIAS }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -43,15 +43,15 @@ jobs:
             -d "refresh_token=${{ secrets.ONEDRIVE_REFRESH_TOKEN }}" \
             -o token.json
 
-      - name: Upload APK to OneDrive
+      - name: ⬆️Upload APK to OneDrive
         run: |
           ACCESS_TOKEN=$(jq -r .access_token token.json)
           APK_PATH=app/build/outputs/apk/release/com.kadon.ptzcontroller-1.0.0.apk
-          curl -X PUT 
-            -H "Authorization: Bearer $ACCESS_TOKEN" 
-            -H "Content-Type: application/vnd.android.package-archive" 
-            --upload-file $APK_PATH 
-            "https://graph.microsoft.com/v1.0/me/drive/root:/APK/$(basename $APK_PATH):/content"
+          curl -X PUT \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            --upload-file "$APK_PATH" \
+            "https://graph.microsoft.com/v1.0/me/drive/root:/APK/$(basename "$APK_PATH"):/content"
 
       - name: Get version name from Gradle
         id: get_version
