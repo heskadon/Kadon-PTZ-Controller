@@ -2,8 +2,7 @@ name: Build, Upload & Release APK
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
 
 jobs:
   build:
@@ -73,4 +72,5 @@ jobs:
           files: app/build/outputs/apk/release/com.kadon.ptzcontroller-1.0.0.apk
           tag_name: v${{ env.VERSION_NAME }}
         env:
+
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
