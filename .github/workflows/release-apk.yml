@@ -69,6 +69,7 @@ jobs:
           release_name: Release v${{ env.VERSION_NAME }}
           draft: false
           prerelease: false
+        permissions: write-all
 
       - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v1
