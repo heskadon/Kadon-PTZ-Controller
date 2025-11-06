@@ -1,0 +1,90 @@
+name: 🔄 Update Active Branch Wiki
+
+on:
+  push:
+    branches-ignore:
+      - 'main'
+    tags-ignore:
+      - '*'
+  delete:
+    branches-ignore:
+      - 'main'
+
+permissions:
+  contents: write
+
+jobs:
+  update_wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⬇️ Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🧠 Get Clean Branch Name
+        id: get_branch
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            BRANCH="${GITHUB_REF#refs/heads/}"
+          else
+            BRANCH="${{ github.event.ref }}"
+          fi
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+
+      - name: 🌐 Clone Wiki Repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.wiki.git" wiki_repo
+
+      - name: 📝 Handle Branch Event
+        env:
+          BRANCH_NAME: ${{ steps.get_branch.outputs.branch }}
+        run: |
+          WIKI_DIR="wiki_repo"
+          WIKI_FILE="$WIKI_DIR/🌿Active-Branch.md"
+          mkdir -p "$WIKI_DIR"
+
+          # Initialize wiki file if missing
+          if [ ! -f "$WIKI_FILE" ]; then
+            echo "## Active Development Branches" > "$WIKI_FILE"
+            echo "" >> "$WIKI_FILE"
+          fi
+
+          if [ "${{ github.event_name }}" = "push" ]; then
+            sed -i "\|\\* \\*\\*${BRANCH_NAME}\\*\\*|d" "$WIKI_FILE"
+            TIMESTAMP="${{ github.event.head_commit.timestamp }}"
+            NEW_ENTRY="* **${BRANCH_NAME}** (Latest push at ${TIMESTAMP:-$(date -u +%Y-%m-%dT%H:%M:%SZ)})"
+            { 
+            head -n 2 "$WIKI_FILE"
+            echo "$NEW_ENTRY"
+            sed '1,2d' "$WIKI_FILE"
+            } > "${WIKI_FILE}.tmp"
+            mv "${WIKI_FILE}.tmp" "$WIKI_FILE"
+            echo "✅ Promoted: $BRANCH_NAME"
+
+          elif [ "${{ github.event_name }}" = "delete" ]; then
+            # Remove branch entry if present
+            if grep -q "\\* \\*\\*${BRANCH_NAME}\\*\\*" "$WIKI_FILE"; then
+              sed -i "\|\\* \\*\\*${BRANCH_NAME}\\*\\*|d" "$WIKI_FILE"
+              echo "🗑️ Removed: $BRANCH_NAME"
+            else
+              echo "⚠️ Not found in wiki: $BRANCH_NAME"
+            fi
+          fi
+
+      - name: 📤 Commit and Push Changes
+        run: |
+          cd wiki_repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          if ! git diff --quiet HEAD; then
+            if [ "${{ github.event_name }}" = "push" ]; then
+              git commit -m "Promote active branch: ${{ steps.get_branch.outputs.branch }}"
+            else
+              git commit -m "Remove deleted branch: ${{ steps.get_branch.outputs.branch }}"
+            fi
+            git push
+          else
+            echo "No changes to commit."
+          fi
