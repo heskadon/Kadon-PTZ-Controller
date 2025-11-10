@@ -1,6 +1,6 @@
 # 🎮 PTZ Controller Pro 🎮
 
-Yo! Welcome to PTZ Controller Pro, the slickest way to boss around your Pan-Tilt-Zoom cameras. This app is your one-stop shop for smooth camera control, live video feeds, and saving those perfect shots as presets.
+Yo! Welcome to PTZ Controller Pro, the slickest way to boss around your UDP protocol Pan-Tilt-Zoom cameras. This app is your one-stop shop for smooth camera control, live video feeds, and saving those perfect shots as presets.
 
 ## 🚀 Tech Stack
 
