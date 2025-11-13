@@ -58,6 +58,25 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
+      - name: 🔎Find APK file
+        id: find_apk
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" -type f | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "Error: Could not find APK file in app/build/outputs/apk/release/"
+            exit 1
+          fi
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "Found APK at: $APK_PATH"
+
+      - name: 🚀Upload APK to Firebase App Distribution
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_APP_ID }}
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+          file: ${{ steps.find_apk.outputs.apk_path }}
+          groups: testers
+
       - name: 🚀Create GitHub Release and Upload APK
         uses: softprops/action-gh-release@v2
         with:
@@ -66,7 +85,7 @@ jobs:
           body: "Automated release for version ${{ env.VERSION_NAME }}"
           draft: false
           prerelease: false
-          files: app/build/outputs/apk/release/*.apk
+          files: ${{ steps.find_apk.outputs.apk_path }}
         # The GITHUB_TOKEN is automatically provided and now has write permissions
         # due to the 'permissions:' block at the top of the workflow
 
@@ -86,15 +105,8 @@ jobs:
 
       - name: ☁️Upload APK to OneDrive
         run: |
-          # Find the correct APK file path
-          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" -type f | head -n 1)
-          if [ -z "$APK_PATH" ]; then
-            echo "Error: Could not find APK file in app/build/outputs/apk/release/"
-            exit 1
-          fi
-          echo "Found APK at: $APK_PATH"
-
           ACCESS_TOKEN="${{ steps.get_onedrive_token.outputs.access_token }}"
+          APK_PATH="${{ steps.find_apk.outputs.apk_path }}"
           curl -X PUT \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
             -H "Content-Type: application/vnd.android.package-archive" \
