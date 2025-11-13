@@ -90,6 +90,7 @@ jobs:
         # due to the 'permissions:' block at the top of the workflow
 
       - name: 🔐Get Access Token for OneDrive
+        if: vars.UPLOAD_ONEDRIVE == 'true'
         id: get_onedrive_token
         run: |
           curl -X POST https://login.microsoftonline.com/${{ secrets.ONEDRIVE_TENANT_ID }}/oauth2/v2.0/token \
@@ -104,6 +105,7 @@ jobs:
           echo "access_token=$ACCESS_TOKEN" >> $GITHUB_OUTPUT
 
       - name: ☁️Upload APK to OneDrive
+        if: vars.UPLOAD_ONEDRIVE == 'true'
         run: |
           ACCESS_TOKEN="${{ steps.get_onedrive_token.outputs.access_token }}"
           APK_PATH="${{ steps.find_apk.outputs.apk_path }}"
